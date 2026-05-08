@@ -2,6 +2,7 @@
 RPC dispatcher that runs inside the Docker container.
 Called by the host orchestrator via: python3 /agent/runner.py '<json>'
 """
+
 import json
 import os
 import subprocess
@@ -86,6 +87,29 @@ def grep_files(pattern: str, path: str = ".") -> str:
     return output or f"No matches for {pattern!r}"
 
 
+def list_skills() -> str:
+    full = _safe_path(".agents")
+    lines = []
+
+    def _read_skill_head(path: Path) -> tuple[str, str]:
+        name = ""
+        desc = ""
+        for line in path.read_text().splitlines():
+            line_stripped = line.strip()
+            if not name and line_stripped.startswith("name:"):
+                name = line_stripped.replace("name:", "").strip()
+            elif not desc and line_stripped.startswith("description:"):
+                desc = line_stripped.replace("description:", "").strip()
+            elif name and desc:
+                break
+        return name, desc
+
+    for skill_file in full.glob("*/SKILL.md"):
+        name, desc = _read_skill_head(skill_file)
+        lines.append(f"{name}: {desc}")
+    return "\n".join(lines)
+
+
 TOOLS = {
     "read_file": lambda a: read_file(**a),
     "write_file": lambda a: write_file(**a),
@@ -93,6 +117,7 @@ TOOLS = {
     "list_dir": lambda a: list_dir(**a),
     "run_bash": lambda a: run_bash(**a),
     "grep_files": lambda a: grep_files(**a),
+    "list_skills": lambda a: list_skills(**a),
 }
 
 

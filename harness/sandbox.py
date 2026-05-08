@@ -1,17 +1,19 @@
+import hashlib
 import json
 import shlex
+import time
 from pathlib import Path
 
 import docker
 from docker.errors import DockerException, ImageNotFound
 from docker.models.containers import Container
-from rich.console import Console
 
-# Separate stderr console so sandbox status messages don't mix with agent output
-console = Console(stderr=True)
+from . import ui
 
 IMAGE = "agent-harness:latest"
 RUNNER = "/agent/runner.py"
+LABEL_KEY = "dev.tothcode.runner-hash"
+RUNNER_PATH = Path(__file__).resolve().parent.parent / "sandbox" / "runner.py"
 
 
 class Sandbox:
@@ -29,13 +31,33 @@ class Sandbox:
                 "Start it, then try again."
             )
 
-        try:
-            self.client.images.get(IMAGE)
-        except ImageNotFound:
-            console.print("[dim]Building sandbox image…[/]")
-            self.client.images.build(path=".", tag=IMAGE, quiet=True)
+        current_hash = self._runner_hash()
+        short_hash = current_hash[:12]
 
-        console.print("[dim]Starting sandbox container…[/]")
+        try:
+            existing = self.client.images.get(IMAGE)
+            stored_hash = existing.labels.get(LABEL_KEY) if existing.labels else None
+            if stored_hash == current_hash:
+                ui.sandbox_reusing(short_hash)
+            else:
+                reason = "runner.py changed" if stored_hash else "missing label"
+                ui.sandbox_building(reason)
+                self.client.images.build(
+                    path=".",
+                    tag=IMAGE,
+                    labels={LABEL_KEY: current_hash},
+                    quiet=True,
+                )
+        except ImageNotFound:
+            ui.sandbox_building("first build")
+            self.client.images.build(
+                path=".",
+                tag=IMAGE,
+                labels={LABEL_KEY: current_hash},
+                quiet=True,
+            )
+
+        ui.sandbox_starting()
         self.container = self.client.containers.run(
             IMAGE,
             command="tail -f /dev/null",
@@ -50,10 +72,13 @@ class Sandbox:
             remove=True,
         )
         self._wait_ready()
-        console.print(f"[green]Sandbox ready[/] [dim](id: {self.container.short_id})[/]")
+        ui.sandbox_ready(self.container.short_id)
+
+    @staticmethod
+    def _runner_hash() -> str:
+        return hashlib.sha256(RUNNER_PATH.read_bytes()).hexdigest()
 
     def _wait_ready(self, attempts: int = 20, interval: float = 0.1) -> None:
-        import time
         for _ in range(attempts):
             try:
                 code, _ = self.container.exec_run("true")
@@ -85,4 +110,4 @@ class Sandbox:
             except Exception:
                 pass
             self.container = None
-            console.print("[dim]Sandbox stopped.[/]")
+            ui.sandbox_stopped()

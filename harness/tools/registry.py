@@ -7,6 +7,7 @@ from .models import (
     EditFileInput,
     GrepFilesInput,
     ListDirInput,
+    ListSkillsInput,
     ReadFileInput,
     RunBashInput,
     WriteFileInput,
@@ -20,16 +21,33 @@ class ToolEntry(NamedTuple):
 
 
 _REGISTRY: dict[str, ToolEntry] = {
-    "read_file": ToolEntry(ReadFileInput, "Read the full contents of a file in the workspace.", True),
-    "write_file": ToolEntry(WriteFileInput, "Write content to a file, creating it if it doesn't exist.", False),
+    "read_file": ToolEntry(
+        ReadFileInput, "Read the full contents of a file in the workspace.", True
+    ),
+    "write_file": ToolEntry(
+        WriteFileInput,
+        "Write content to a file, creating it if it doesn't exist.",
+        False,
+    ),
     "edit_file": ToolEntry(
         EditFileInput,
         "Replace an exact block of text in a file. Prefer this over write_file for targeted edits.",
         False,
     ),
-    "list_dir": ToolEntry(ListDirInput, "List the directory tree of the workspace or a subdirectory.", True),
-    "run_bash": ToolEntry(RunBashInput, "Run a shell command inside the sandboxed workspace.", False),
-    "grep_files": ToolEntry(GrepFilesInput, "Search for a regex pattern across files in the workspace.", True),
+    "list_dir": ToolEntry(
+        ListDirInput,
+        "List the directory tree of the workspace or a subdirectory.",
+        True,
+    ),
+    "run_bash": ToolEntry(
+        RunBashInput, "Run a shell command inside the sandboxed workspace.", False
+    ),
+    "grep_files": ToolEntry(
+        GrepFilesInput,
+        "Search for a regex pattern across files in the workspace.",
+        True,
+    ),
+    "list_skills": ToolEntry(ListSkillsInput, "List available agent skills", True),
 }
 
 READ_ONLY_TOOLS: frozenset[str] = frozenset(

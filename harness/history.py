@@ -16,6 +16,15 @@ class ConversationHistory:
         self.messages.extend(results)
         self._trim()
 
+    def clear_messages(self) -> None:
+        self.messages.clear()
+
+    def compact(self, summary: str) -> None:
+        self.messages = [
+            {"role": "user", "content": "Summarize the conversation so far"},
+            {"role": "assistant", "content": summary},
+        ]
+
     def _trim(self) -> None:
         if len(self.messages) > self.TAIL:
             self.messages = self.messages[-self.TAIL :]

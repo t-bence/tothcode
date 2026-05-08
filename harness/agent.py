@@ -2,15 +2,12 @@ import json
 import os
 
 from openai import OpenAI
-from rich.markdown import Markdown
-from rich.rule import Rule
 
-from .console import console
+from . import ui
 from .history import ConversationHistory
 from .hitl import gate
 from .sandbox import Sandbox
 from .tools.registry import get_openai_schemas, is_known, validate_args
-from .utils import truncate
 
 SYSTEM_PROMPT = """\
 You are a coding agent with access to a sandboxed workspace.
@@ -24,94 +21,153 @@ Guidelines:
 - If a tool returns an error, diagnose it before retrying.
 """
 
+COMPACT_PROMPT = """\
+Summarize this conversation for use as future context. Include:
+- The user's original goal
+- Every file created or modified (with paths)
+- Current state of the workspace
+- Anything left unfinished
+
+Be concrete and terse. This summary replaces the full history.
+"""
+
 MAX_ITERATIONS = 30
 
 COMMANDS = {
     "/exit": "Exit the session",
     "/quit": "Exit the session",
     "/clear": "Clear conversation history",
+    "/compact": "Summarize history into a single context message",
     "/help": "Show available commands",
 }
 
 
-def run_session(sandbox: Sandbox, model: str) -> None:
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
+class Agent:
+    def __init__(self, sandbox: Sandbox, model: str) -> None:
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
 
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
-    history = ConversationHistory()
+        self.client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+        self.sandbox = sandbox
+        self.model = model
+        self.history = ConversationHistory()
+        self.system_prompt = self._get_system_prompt()
 
-    console.print(f"[dim]Model: {model} · /help for commands[/]")
-    console.print(Rule(style="dim"))
+    def run_session(self) -> None:
+        ui.welcome(self.model)
 
-    while True:
-        try:
-            user_input = console.input("\n[bold cyan]>[/] ").strip()
-        except EOFError:
-            break
-
-        if not user_input:
-            continue
-
-        if user_input.startswith("/"):
-            if user_input in ("/exit", "/quit"):
+        while True:
+            user_input = ui.prompt_user()
+            if user_input is None:
                 break
-            elif user_input == "/clear":
-                history = ConversationHistory()
-                console.print("[dim]History cleared.[/]")
-            elif user_input == "/help":
-                for cmd, desc in COMMANDS.items():
-                    console.print(f"  [cyan]{cmd}[/]  {desc}")
-            else:
-                console.print(f"[yellow]Unknown command.[/] Type /help for available commands.")
-            continue
 
-        history.add_user(user_input)
-        _run_turn(client, sandbox, history, model)
+            if user_input.startswith("/"):
+                should_exit = self._handle_command(user_input)
+                if should_exit:
+                    break
+                continue
 
+            self.history.add_user(user_input)
+            self._run_turn()
 
-def _run_turn(client: OpenAI, sandbox: Sandbox, history: ConversationHistory, model: str) -> None:
-    for _ in range(MAX_ITERATIONS):
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history.messages,
-            tools=get_openai_schemas(),
-            tool_choice="auto",
+    # --- commands ---
+
+    def _handle_command(self, cmd: str) -> bool:
+        """Returns True if the session should exit."""
+        if cmd in ("/exit", "/quit"):
+            return True
+        if cmd == "/clear":
+            self.history.clear_messages()
+            ui.info("History cleared.")
+        elif cmd == "/compact":
+            self._compact()
+        elif cmd == "/help":
+            ui.commands(COMMANDS)
+        else:
+            ui.info("Unknown command. Type /help for available commands.")
+        return False
+
+    def _compact(self) -> None:
+        ui.info("Compacting history…")
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=self.history.messages
+            + [{"role": "user", "content": COMPACT_PROMPT}],
         )
-        message = response.choices[0].message
-        history.add_assistant(_message_to_dict(message))
+        summary = response.choices[0].message.content
+        self.history.compact(summary)
+        ui.info("History compacted.")
 
-        if not message.tool_calls:
-            if message.content:
-                console.print(Markdown(message.content))
-            break
+    # --- agentic loop ---
 
-        tool_results = [_dispatch(tc, sandbox) for tc in message.tool_calls]
-        history.add_tool_results(tool_results)
-    else:
-        console.print("[red]Reached iteration limit.[/]")
+    def _run_turn(self) -> None:
+        for _ in range(MAX_ITERATIONS):
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "system", "content": self.system_prompt}]
+                + self.history.messages,
+                tools=get_openai_schemas(),
+                tool_choice="auto",
+            )
+            message = response.choices[0].message
+            self.history.add_assistant(_message_to_dict(message))
 
+            if not message.tool_calls:
+                if message.content:
+                    ui.assistant_message(message.content)
+                break
 
-def _dispatch(tc, sandbox: Sandbox) -> dict:
-    name = tc.function.name
-    raw_args = json.loads(tc.function.arguments)
-    result_content = _execute(name, raw_args, sandbox)
-    _print_result(name, result_content, ok=not result_content.startswith("Error:"))
-    return {"role": "tool", "tool_call_id": tc.id, "content": result_content}
+            tool_results = [self._dispatch(tc) for tc in message.tool_calls]
+            self.history.add_tool_results(tool_results)
+        else:
+            ui.iteration_limit()
 
+    def _dispatch(self, tc) -> dict:
+        name = tc.function.name
+        raw_args = json.loads(tc.function.arguments)
+        content = self._execute(name, raw_args)
+        ui.tool_result(name, content, ok=not content.startswith("Error:"))
+        return {"role": "tool", "tool_call_id": tc.id, "content": content}
 
-def _execute(name: str, raw_args: dict, sandbox: Sandbox) -> str:
-    if not is_known(name):
-        return f"Error: unknown tool {name!r}"
-    try:
-        args = validate_args(name, raw_args)
-    except Exception as e:
-        return f"Error: invalid arguments — {e}"
-    if not gate(name, args):
-        return "Error: tool call denied by user."
-    result = sandbox.call(name, args)
-    return result["result"] if result.get("ok") else f"Error: {result.get('error', 'unknown error')}"
+    def _execute(self, name: str, raw_args: dict) -> str:
+        if not is_known(name):
+            return f"Error: unknown tool {name!r}"
+        try:
+            args = validate_args(name, raw_args)
+        except Exception as e:
+            return f"Error: invalid arguments — {e}"
+        if not gate(name, args):
+            return "Error: tool call denied by user."
+        result = self.sandbox.call(name, args)
+        return (
+            result["result"]
+            if result.get("ok")
+            else f"Error: {result.get('error', 'unknown error')}"
+        )
+
+    def _get_system_prompt(self) -> str:
+        """Set up system prompt with TOTH.md and skills
+
+        Returns
+        -------
+        str
+            System prompt augmented with contents of the TOTH.md file and skills
+        """
+        prompt_items = [SYSTEM_PROMPT]
+
+        markdown = self._execute("read_file", {"path": "TOTH.md"})
+        if markdown:
+            ui.info(f"Read {markdown[0:20].replace('\n', ' ')}")
+            prompt_items.append("Workspace instructions:")
+            prompt_items.append(markdown)
+
+        skills = self._execute("list_skills", {})
+        if skills:
+            ui.info(f"Found skills: {skills}")
+            prompt_items.append(skills)
+
+        return "\n".join(prompt_items)
 
 
 def _message_to_dict(message) -> dict:
@@ -123,13 +179,11 @@ def _message_to_dict(message) -> dict:
             {
                 "id": tc.id,
                 "type": "function",
-                "function": {"name": tc.function.name, "arguments": tc.function.arguments},
+                "function": {
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments,
+                },
             }
             for tc in message.tool_calls
         ]
     return d
-
-
-def _print_result(tool_name: str, content: str, ok: bool) -> None:
-    color, label = ("green", "ok") if ok else ("red", "error")
-    console.print(f"  [{color}][{label}][/] [dim]{tool_name}:[/] {truncate(content, 300)}")

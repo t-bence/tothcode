@@ -2,8 +2,8 @@ from pathlib import Path
 
 import typer
 
-from .agent import run_session
-from .console import console
+from . import ui
+from .agent import Agent
 from .sandbox import Sandbox
 
 app = typer.Typer(help="CLI coding agent harness with Docker sandbox isolation.")
@@ -30,11 +30,11 @@ def main(
     sandbox = Sandbox(workspace.resolve())
     try:
         sandbox.start()
-        run_session(sandbox, model)
+        Agent(sandbox, model).run_session()
     except KeyboardInterrupt:
-        console.print("\n[yellow]Interrupted.[/]")
+        ui.info("Interrupted.")
     except Exception as e:
-        console.print(f"[red]Error:[/] {e}")
+        ui.error(str(e))
         raise typer.Exit(1)
     finally:
         sandbox.stop()
