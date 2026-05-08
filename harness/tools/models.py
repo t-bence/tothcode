@@ -49,3 +49,7 @@ class GrepFilesInput(BaseModel):
 
 class ListSkillsInput(BaseModel):
     pass
+
+
+class UseSkillInput(BaseModel):
+    skill_name: str = Field(..., description="Name of the skill to load")

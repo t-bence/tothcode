@@ -31,7 +31,7 @@ class Sandbox:
                 "Start it, then try again."
             )
 
-        current_hash = self._runner_hash()
+        current_hash = self._overall_hash()
         short_hash = current_hash[:12]
 
         try:
@@ -75,8 +75,17 @@ class Sandbox:
         ui.sandbox_ready(self.container.short_id)
 
     @staticmethod
-    def _runner_hash() -> str:
-        return hashlib.sha256(RUNNER_PATH.read_bytes()).hexdigest()
+    def _overall_hash() -> str:
+        """Hash all files that affect the runner's behaviour inside the container."""
+        # Hash of runner.py
+        runner_hash = hashlib.sha256(RUNNER_PATH.read_bytes()).hexdigest()
+        # Hash of the tool implementations (the only other code running inside the container)
+        impl_path = Path(__file__).resolve().parent / "tools" / "impl.py"
+        impl_hash = hashlib.sha256(impl_path.read_bytes()).hexdigest()
+        combined = f"{runner_hash}:{impl_hash}".encode()
+        return hashlib.sha256(combined).hexdigest()
+
+
 
     def _wait_ready(self, attempts: int = 20, interval: float = 0.1) -> None:
         for _ in range(attempts):

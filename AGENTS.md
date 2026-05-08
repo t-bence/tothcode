@@ -30,9 +30,11 @@ Two processes talk to each other, separated by a Docker boundary:
 - `agent.py` — the agentic loop; calls OpenRouter, dispatches tool calls, renders output via Rich
 - `sandbox.py` — wraps `docker-py`; builds the image, starts the container, calls `container.exec_run()` per tool call
 - `hitl.py` — human-in-the-loop gate; auto-approves read-only tools, prompts for everything else
-- `history.py` — conversation history with a sliding-window trim (keeps first message + last 30)
-- `tools/models.py` — Pydantic models for every tool's input arguments (single source of truth)
+- `history.py` — conversation history with a sliding-window trim (preserves first message + last 39)
+- `prompts/` — markdown files for system prompt and other LLM prompts
+- `tools/models.py` — Pydantic models for every tool's input arguments (single source of truth for schemas)
 - `tools/registry.py` — derives OpenAI-compatible JSON schemas from the Pydantic models via `model_json_schema()`
+- `tools/impl.py` — actual tool implementations; also provides the `TOOLS` dict for the sandbox runner
 
 **Sandbox side (`sandbox/runner.py`)** — runs inside the Docker container, has no network access:
 - Invoked as `python3 /agent/runner.py '<json>'` for each tool call
@@ -46,7 +48,7 @@ Two processes talk to each other, separated by a Docker boundary:
 
 1. Add a Pydantic model to `harness/tools/models.py`
 2. Register it in `harness/tools/registry.py` (`_REGISTRY` dict, third field is `read_only` bool)
-3. Implement the function in `sandbox/runner.py` and add it to `TOOLS`
+3. Implement the function in `harness/tools/impl.py` and add it to the `TOOLS` dict
 4. Rebuild the Docker image (happens automatically on next `agent` run)
 
 Read-only tools (flagged `True` in registry) are auto-approved by the HITL gate; write/exec tools require explicit user confirmation.
