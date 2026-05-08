@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 
 from openai import OpenAI
 
@@ -9,27 +10,9 @@ from .hitl import gate
 from .sandbox import Sandbox
 from .tools.registry import get_openai_schemas, is_known, validate_args
 
-SYSTEM_PROMPT = """\
-You are a coding agent with access to a sandboxed workspace.
-
-Guidelines:
-- Use list_dir and read_file first to understand the project before making changes.
-- Prefer edit_file over write_file for targeted changes — it is safer and easier to review.
-- edit_file requires an exact match of search_block (including whitespace and indentation).
-- When running bash, chain dependent commands with && (e.g. cd src && python main.py).
-- Keep tool calls focused — one logical action per call.
-- If a tool returns an error, diagnose it before retrying.
-"""
-
-COMPACT_PROMPT = """\
-Summarize this conversation for use as future context. Include:
-- The user's original goal
-- Every file created or modified (with paths)
-- Current state of the workspace
-- Anything left unfinished
-
-Be concrete and terse. This summary replaces the full history.
-"""
+_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+SYSTEM_PROMPT = (_PROMPTS_DIR / "system.md").read_text()
+COMPACT_PROMPT = (_PROMPTS_DIR / "compact.md").read_text()
 
 MAX_ITERATIONS = 30
 
@@ -139,6 +122,9 @@ class Agent:
             return f"Error: invalid arguments — {e}"
         if not gate(name, args):
             return "Error: tool call denied by user."
+        return self._call_tool(name, args)
+
+    def _call_tool(self, name: str, args: dict[str, str]) -> str:
         result = self.sandbox.call(name, args)
         return (
             result["result"]
@@ -156,15 +142,19 @@ class Agent:
         """
         prompt_items = [SYSTEM_PROMPT]
 
-        markdown = self._execute("read_file", {"path": "TOTH.md"})
+        markdown = self._call_tool("read_file", {"path": "TOTH.md"})
         if markdown:
-            ui.info(f"Read {markdown[0:20].replace('\n', ' ')}")
+            ui.info("Read TOTH.md")
             prompt_items.append("Workspace instructions:")
             prompt_items.append(markdown)
 
-        skills = self._execute("list_skills", {})
+        skills = self._call_tool("list_skills", {})
         if skills:
-            ui.info(f"Found skills: {skills}")
+            ui.info(f"Found {len(skills.splitlines())} skills")
+            prompt_items.append("You have access to the following skills.")
+            prompt_items.append(
+                "You can use them by using the use_skill tool with the skill name as argument."
+            )
             prompt_items.append(skills)
 
         return "\n".join(prompt_items)

@@ -27,4 +27,6 @@ class ConversationHistory:
 
     def _trim(self) -> None:
         if len(self.messages) > self.TAIL:
-            self.messages = self.messages[-self.TAIL :]
+            head = self.messages[:1]
+            tail = self.messages[-(self.TAIL - 1):]
+            self.messages = head + tail

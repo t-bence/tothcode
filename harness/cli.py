@@ -8,7 +8,7 @@ from .sandbox import Sandbox
 
 app = typer.Typer(help="CLI coding agent harness with Docker sandbox isolation.")
 
-DEFAULT_MODEL = "deepseek/deepseek-v4-pro"
+DEFAULT_MODEL = "deepseek/deepseek-v4-flash"
 
 
 @app.command()

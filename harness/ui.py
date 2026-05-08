@@ -2,18 +2,29 @@
 All Rich display logic lives here.
 Logic modules (agent, hitl) call into this module and own no console.print calls.
 """
+
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.prompt import Confirm
-from rich.rule import Rule
 
 from .console import console, err_console
 from .utils import truncate
 
 
 def welcome(model: str) -> None:
-    console.print(f"[dim]Model: {model} · /help for commands[/]")
-    console.print(Rule(style="dim"))
+    lines = [
+        f"[dim]Model: {model}",
+        "/help for commands",
+        "/compact to compact",
+        "/clear to start a new session[/]",
+    ]
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title="[green]Welcome to TOTHCODE[/]",
+            border_style="green",
+        )
+    )
 
 
 def tool_auto_approved(tool_name: str, args: dict) -> None:
@@ -29,12 +40,16 @@ def tool_request(tool_name: str, args: dict) -> None:
             lines.append(f"    [italic]{truncate(value, 400)}[/]")
         else:
             lines.append(f"  [dim]{key}:[/] {value!r}")
-    console.print(Panel("\n".join(lines), title="[yellow]Tool request[/]", border_style="yellow"))
+    console.print(
+        Panel("\n".join(lines), title="[yellow]Tool request[/]", border_style="yellow")
+    )
 
 
 def tool_result(tool_name: str, content: str, ok: bool) -> None:
     color, label = ("green", "ok") if ok else ("red", "error")
-    console.print(f"  [{color}][{label}][/] [dim]{tool_name}:[/] {truncate(content, 300)}")
+    console.print(
+        f"  [{color}][{label}][/] [dim]{tool_name}:[/] {truncate(content, 300)}"
+    )
 
 
 def assistant_message(content: str) -> None:
@@ -67,6 +82,7 @@ def prompt_user() -> str | None:
 
 # --- sandbox status (written to stderr to stay off the agent output stream) ---
 
+
 def sandbox_building(reason: str = "") -> None:
     msg = "[dim]Building sandbox image…[/]"
     if reason:
@@ -75,7 +91,9 @@ def sandbox_building(reason: str = "") -> None:
 
 
 def sandbox_reusing(short_hash: str) -> None:
-    err_console.print(f"[dim]Reusing sandbox image[/] [green](runner hash: {short_hash})[/]")
+    err_console.print(
+        f"[dim]Reusing sandbox image[/] [green](runner hash: {short_hash})[/]"
+    )
 
 
 def sandbox_starting() -> None:

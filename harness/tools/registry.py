@@ -10,6 +10,7 @@ from .models import (
     ListSkillsInput,
     ReadFileInput,
     RunBashInput,
+    UseSkillInput,
     WriteFileInput,
 )
 
@@ -48,6 +49,11 @@ _REGISTRY: dict[str, ToolEntry] = {
         True,
     ),
     "list_skills": ToolEntry(ListSkillsInput, "List available agent skills", True),
+    "use_skill": ToolEntry(
+        UseSkillInput,
+        "Load and apply a skill by name. Skills provide specialized instructions for specific tasks.",
+        True,
+    ),
 }
 
 READ_ONLY_TOOLS: frozenset[str] = frozenset(
