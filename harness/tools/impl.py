@@ -116,7 +116,7 @@ def list_skills() -> str:
                 skills.append(
                     f"{metadata['name']}: {metadata.get('description', 'No description provided')}"
                 )
-        except (IOError, UnicodeDecodeError) as e:
+        except (IOError, UnicodeDecodeError):
             pass
 
     return "\n".join(skills)
