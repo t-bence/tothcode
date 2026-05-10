@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI Agents when working with code in this repository.
 
 ## Setup
 
@@ -18,8 +18,6 @@ source .venv/bin/activate
 agent "your task here"
 agent --workspace ./my-project --model openai/gpt-4o "fix the bug in main.py"
 ```
-
-Default model: `anthropic/claude-opus-4-5` via OpenRouter.
 
 ## Architecture
 

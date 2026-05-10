@@ -84,31 +84,50 @@ def grep_files(pattern: str, path: str = ".") -> str:
 
 
 def list_skills() -> str:
-    full = _safe_path(".agents")
-    lines = []
+    root_path = _safe_path(".agents")
+    if not root_path.exists():
+        return ""
 
-    def _read_skill_head(path: Path) -> tuple[str, str]:
-        name = ""
-        desc = ""
-        for line in path.read_text().splitlines():
-            line_stripped = line.strip()
-            if not name and line_stripped.startswith("name:"):
-                name = line_stripped.replace("name:", "").strip()
-            elif not desc and line_stripped.startswith("description:"):
-                desc = line_stripped.replace("description:", "").strip()
-            elif name and desc:
-                break
-        return name, desc
+    skills = []
 
-    for skill_file in full.glob("*/SKILL.md"):
-        name, desc = _read_skill_head(skill_file)
-        lines.append(f"{name}: {desc}")
-    return "\n".join(lines)
+    def _parse_skill_metadata(path: Path) -> dict[str, str]:
+        """Parses name and description from the top of a SKILL.md file."""
+        data = {}
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                # Efficiently split only on the first colon
+                if ":" in line:
+                    key, _, value = line.partition(":")
+                    key = key.strip().lower()
+                    if key in ("name", "description") and key not in data:
+                        data[key] = value.strip()
+
+                # Exit early once we have both fields
+                if "name" in data and "description" in data:
+                    break
+
+        return data
+
+    for skill_file in root_path.glob("*/SKILL.md"):
+        try:
+            metadata = _parse_skill_metadata(skill_file)
+            if metadata.get("name"):
+                skills.append(
+                    f"{metadata['name']}: {metadata.get('description', 'No description provided')}"
+                )
+        except (IOError, UnicodeDecodeError) as e:
+            pass
+
+    return "\n".join(skills)
 
 
 def use_skill(skill_name: str) -> str:
-    md_path = _safe_path(".agents") / skill_name / "SKILL.md"
-    return md_path.read_text()
+    try:
+        md_path = _safe_path(".agents") / skill_name / "SKILL.md"
+        return md_path.read_text()
+    except:
+        return f"The skill {skill_name} was not found"
 
 
 TOOLS = {

@@ -133,29 +133,32 @@ class Agent:
         )
 
     def _get_system_prompt(self) -> str:
-        """Set up system prompt with TOTH.md and skills
+        """Set up system prompt with AGENTS.md and skills
 
         Returns
         -------
         str
-            System prompt augmented with contents of the TOTH.md file and skills
+            System prompt augmented with contents of the AGENTS.md file and skills
         """
         prompt_items = [SYSTEM_PROMPT]
 
-        markdown = self._call_tool("read_file", {"path": "TOTH.md"})
-        if markdown:
-            ui.info("Read TOTH.md")
+        markdown = self._call_tool("read_file", {"path": "AGENTS.md"})
+        if not markdown.startswith("Error"):
+            ui.info("Read AGENTS.md")
             prompt_items.append("Workspace instructions:")
             prompt_items.append(markdown)
 
         skills = self._call_tool("list_skills", {})
-        if skills:
+        if not skills.startswith("Error"):
             ui.info(f"Found {len(skills.splitlines())} skills")
             prompt_items.append("You have access to the following skills.")
             prompt_items.append(
-                "You can use them by using the use_skill tool with the skill name as argument."
+                "If any of them matches, use it by using the use_skill tool with the skill name as argument."
             )
             prompt_items.append(skills)
+            prompt_items.append(
+                "If you forget the skills, use the list_skills tool to reload them"
+            )
 
         return "\n".join(prompt_items)
 

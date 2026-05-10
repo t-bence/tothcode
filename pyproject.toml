@@ -1,5 +1,5 @@
 [project]
-name = "agent-harness"
+name = "tothcode"
 version = "0.1.0"
 description = "CLI coding agent harness with Docker sandbox"
 requires-python = ">=3.12"
@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-agent = "harness.cli:app"
+tothcode = "harness.cli:app"
 
 [build-system]
 requires = ["hatchling"]
