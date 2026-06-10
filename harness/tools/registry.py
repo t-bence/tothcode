@@ -41,7 +41,7 @@ _REGISTRY: dict[str, ToolEntry] = {
         True,
     ),
     "run_bash": ToolEntry(
-        RunBashInput, "Run a shell command inside the sandboxed workspace.", False
+        RunBashInput, "Run a uv or python command in the workspace.", False
     ),
     "grep_files": ToolEntry(
         GrepFilesInput,

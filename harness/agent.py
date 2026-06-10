@@ -8,7 +8,7 @@ from . import ui
 from .history import ConversationHistory
 from .hitl import gate
 from .sandbox import Sandbox
-from .tools.registry import get_openai_schemas, is_known, validate_args
+from .tools.registry import READ_ONLY_TOOLS, get_openai_schemas, is_known, validate_args
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 SYSTEM_PROMPT = (_PROMPTS_DIR / "system.md").read_text()
@@ -110,7 +110,8 @@ class Agent:
         name = tc.function.name
         raw_args = json.loads(tc.function.arguments)
         content = self._execute(name, raw_args)
-        ui.tool_result(name, content, ok=not content.startswith("Error:"))
+        if name not in READ_ONLY_TOOLS:
+            ui.tool_result(name, content, ok=not content.startswith("Error:"))
         return {"role": "tool", "tool_call_id": tc.id, "content": content}
 
     def _execute(self, name: str, raw_args: dict) -> str:

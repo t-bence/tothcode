@@ -36,7 +36,7 @@ class ListDirInput(BaseModel):
 class RunBashInput(BaseModel):
     command: str = Field(
         ...,
-        description="Shell command to run inside /workspace. Chain commands with && to preserve context across steps.",
+        description="Shell command to run in the workspace. Must start with 'uv' or 'python'. Chain commands with && to preserve context across steps.",
     )
 
 

@@ -1,18 +1,18 @@
-"""
-Tool implementations for the sandbox.
-Runs inside the Docker container — BASE is /workspace.
-"""
-
 import os
 import subprocess
 from pathlib import Path
 
-BASE = Path("/workspace").resolve()
+_base: Path = Path(".").resolve()
+
+
+def configure(base: Path) -> None:
+    global _base
+    _base = base.resolve()
 
 
 def _safe_path(path: str) -> Path:
-    resolved = (BASE / path).resolve()
-    resolved.relative_to(BASE)
+    resolved = (_base / path).resolve()
+    resolved.relative_to(_base)
     return resolved
 
 
@@ -56,10 +56,12 @@ def list_dir(path: str = ".") -> str:
 
 
 def run_bash(command: str) -> str:
+    if not any(command.lstrip().startswith(p) for p in ("uv ", "python ")):
+        raise PermissionError(f"Only 'uv' and 'python' commands are allowed, got: {command!r}")
     result = subprocess.run(
         command,
         shell=True,
-        cwd=BASE,
+        cwd=_base,
         capture_output=True,
         text=True,
         timeout=60,
@@ -79,7 +81,7 @@ def grep_files(pattern: str, path: str = ".") -> str:
         capture_output=True,
         text=True,
     )
-    output = result.stdout.strip().replace(str(BASE) + "/", "")
+    output = result.stdout.strip().replace(str(_base) + "/", "")
     return output or f"No matches for {pattern!r}"
 
 
@@ -91,19 +93,16 @@ def list_skills() -> str:
     skills = []
 
     def _parse_skill_metadata(path: Path) -> dict[str, str]:
-        """Parses name and description from the top of a SKILL.md file."""
         data = {}
         with path.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                # Efficiently split only on the first colon
                 if ":" in line:
                     key, _, value = line.partition(":")
                     key = key.strip().lower()
                     if key in ("name", "description") and key not in data:
                         data[key] = value.strip()
 
-                # Exit early once we have both fields
                 if "name" in data and "description" in data:
                     break
 
@@ -126,7 +125,7 @@ def use_skill(skill_name: str) -> str:
     try:
         md_path = _safe_path(".agents") / skill_name / "SKILL.md"
         return md_path.read_text()
-    except:
+    except Exception:
         return f"The skill {skill_name} was not found"
 
 
@@ -141,4 +140,4 @@ TOOLS = {
     "use_skill": lambda a: use_skill(**a),
 }
 
-__all__ = ["TOOLS"]
+__all__ = ["TOOLS", "configure"]
