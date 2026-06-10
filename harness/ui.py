@@ -90,32 +90,8 @@ def prompt_user() -> str | None:
         return None
 
 
-# --- sandbox status (written to stderr to stay off the agent output stream) ---
-
-
-def sandbox_building(reason: str = "") -> None:
-    msg = "[dim]Building sandbox image…[/]"
-    if reason:
-        msg += f" [yellow]({reason})[/]"
-    err_console.print(msg)
-
-
-def sandbox_reusing(short_hash: str) -> None:
-    err_console.print(
-        f"[dim]Reusing sandbox image[/] [green](runner hash: {short_hash})[/]"
-    )
-
-
-def sandbox_starting() -> None:
-    err_console.print("[dim]Starting sandbox container…[/]")
-
-
 def sandbox_ready(short_id: str) -> None:
-    err_console.print(f"[green]Sandbox ready[/] [dim](id: {short_id})[/]")
-
-
-def sandbox_stopped() -> None:
-    err_console.print("[dim]Sandbox stopped.[/]")
+    err_console.print(f"[green]Sandbox ready[/] [dim]({short_id})[/]")
 
 
 def prompt_allow_tool() -> bool:

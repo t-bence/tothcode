@@ -1,11 +1,11 @@
 [project]
 name = "tothcode"
 version = "0.1.0"
-description = "CLI coding agent harness with Docker sandbox"
+description = "CLI coding agent harness"
 requires-python = ">=3.12"
 dependencies = [
     "openai>=1.0",
-    "docker>=7.0",
+    "nono-py>=0.1",
     "pydantic>=2.0",
     "typer>=0.12",
     "rich>=13.0",
