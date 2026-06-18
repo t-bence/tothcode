@@ -1,12 +1,10 @@
 import json
-import os
 from pathlib import Path
-
-from openai import OpenAI
 
 from . import ui
 from .history import ConversationHistory
 from .hitl import gate
+from .providers import Provider
 from .sandbox import Sandbox
 from .tools.registry import READ_ONLY_TOOLS, get_openai_schemas, is_known, validate_args
 
@@ -26,14 +24,10 @@ COMMANDS = {
 
 
 class Agent:
-    def __init__(self, sandbox: Sandbox, model: str) -> None:
-        api_key = os.environ.get("OPENROUTER_API_KEY")
-        if not api_key:
-            raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
-
-        self.client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+    def __init__(self, sandbox: Sandbox, provider: Provider) -> None:
+        self.client = provider.client
+        self.model = provider.model
         self.sandbox = sandbox
-        self.model = model
         self.history = ConversationHistory()
         self.system_prompt = self._get_system_prompt()
 

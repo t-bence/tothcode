@@ -6,24 +6,29 @@ This file provides guidance to AI Agents when working with code in this reposito
 
 ```bash
 uv venv && uv pip install -e .
-export OPENROUTER_API_KEY=sk-or-...
+export OPENROUTER_API_KEY=sk-or-...  # required for OpenRouter models only
 ```
 
-Docker Desktop must be running. The sandbox image is built automatically on first `agent` invocation.
+Docker Desktop must be running. The sandbox image is built automatically on first `tothcode` invocation.
 
 ## Running
 
 ```bash
 source .venv/bin/activate
-agent "your task here"
-agent --workspace ./my-project --model openai/gpt-4o "fix the bug in main.py"
+tothcode
+tothcode --workspace ./my-project --model openai/gpt-4o
+tothcode --model ollama/llama3                              # local Ollama, no API key needed
+tothcode --ollama-host http://192.168.1.10:11434 --model ollama/mistral
 ```
+
+Provider is auto-detected from the model name: `ollama/<name>` → local Ollama; anything else → OpenRouter.
 
 ## Architecture
 
 Two processes talk to each other, separated by a Docker boundary:
 
 **Host side (`harness/`)** — runs on your machine, never touches the workspace files directly:
+
 - `cli.py` — Typer entry point; owns sandbox lifetime (`start` / `stop` around the session)
 - `agent.py` — the agentic loop; calls OpenRouter, dispatches tool calls, renders output via Rich
 - `sandbox.py` — wraps `docker-py`; builds the image, starts the container, calls `container.exec_run()` per tool call
@@ -35,11 +40,13 @@ Two processes talk to each other, separated by a Docker boundary:
 - `tools/impl.py` — actual tool implementations; also provides the `TOOLS` dict for the sandbox runner
 
 **Sandbox side (`sandbox/runner.py`)** — runs inside the Docker container, has no network access:
+
 - Invoked as `python3 /agent/runner.py '<json>'` for each tool call
 - Accepts `{"tool": "<name>", "args": {...}}` on `sys.argv[1]`, prints `{"ok": bool, "result"/"error": ...}` to stdout
 - `_safe_path()` resolves and validates all paths stay inside `/workspace`
 
 **Communication flow:**
+
 1. LLM returns a tool call JSON → `agent.py` validates args with Pydantic → `hitl.gate()` → `sandbox.call()` → `runner.py` → result back to LLM
 
 ## Adding a tool
